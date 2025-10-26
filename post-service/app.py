@@ -1,35 +1,55 @@
-# app.py
-import os, threading, time
-from datetime import datetime
-from flask import Flask, jsonify
-from dotenv import load_dotenv
+#!/usr/bin/env python3
+import os
+import threading
+from fastapi import FastAPI, Response
+from pydantic import BaseModel
+import uvicorn
 
-# import your existing function
-from post_reels import process_due_items, load_env
+# Import your existing code
+import post_reels as poster
 
-app = Flask(__name__)
-load_dotenv()   # will be populated from Render "Environment" settings
-load_env()
+app = FastAPI()
 
-WINDOW_MIN = int(os.getenv("WINDOW_MIN", "20"))
-INTERVAL_SEC = int(os.getenv("INTERVAL_SEC", "60"))
-DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
+# Ensure .env is read
+poster.load_env()
 
-running = True
+# Simple in-process lock to avoid overlapping runs
+run_lock = threading.Lock()
+last_status = {"ran": False, "error": None}
 
-def worker_loop():
-    while running:
-        try:
-            process_due_items(WINDOW_MIN, dry_run=DRY_RUN)
-        except Exception as e:
-            print(f"[!] Loop error: {e}", flush=True)
-        time.sleep(INTERVAL_SEC)
+class RunRequest(BaseModel):
+    window_min: int = 20
+    dry_run: bool = False
+    also_story: bool = True
 
-@app.route("/health")
+@app.get("/health")
 def health():
-    return jsonify(ok=True, time=datetime.utcnow().isoformat()+"Z")
+    return {"status": "ok"}
+
+@app.post("/run")
+def run(req: RunRequest):
+    if not run_lock.acquire(blocking=False):
+        # Another run is still executing; skip to prevent overlap
+        return {"status": "busy", "detail": "Another run in progress"}
+    try:
+        changed = poster.process_due_items(
+            window_min=req.window_min,
+            dry_run=req.dry_run,
+            also_story=req.also_story,
+        )
+        last_status.update({"ran": True, "error": None})
+        return {"status": "ok", "changed": bool(changed)}
+    except Exception as e:
+        last_status.update({"ran": True, "error": str(e)})
+        return Response(content=str(e), status_code=500)
+    finally:
+        run_lock.release()
+
+@app.get("/last")
+def last():
+    return last_status
 
 if __name__ == "__main__":
-    t = threading.Thread(target=worker_loop, daemon=True)
-    t.start()
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "10000")))
+    # Render expects the service to listen on $PORT
+    port = int(os.getenv("PORT", "10000"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
