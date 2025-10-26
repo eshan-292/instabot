@@ -69,7 +69,7 @@ def is_due(iso_str, window_minutes):
     dt_utc = dt_local.astimezone(timezone.utc)
     now_utc = datetime.now(timezone.utc)
     delta_min = (now_utc - dt_utc).total_seconds() / 60.0
-    return delta_min >= 0 and delta_min <= window_minutes
+    return delta_min >= 0 and delta_min < window_minutes
 
 def resolve_video_url(rec, public_base_url):
     """
