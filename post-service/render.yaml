@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: ig-reels-poster
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn -w 1 -b 0.0.0.0:$PORT app:app"
+    envVars:
+      - key: IG_ACCESS_TOKEN
+        sync: false
+      - key: IG_USER_ID
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: WINDOW_MIN
+        value: "20"
+      - key: INTERVAL_SEC
+        value: "60"
