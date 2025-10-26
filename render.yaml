@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: insta-reels-poster
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server_runner.py
+    autoDeploy: true
+    envVars:
+      - key: IG_ACCESS_TOKEN
+        sync: false
+      - key: IG_USER_ID
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      # any others you use (e.g., FB_APP_ID/FB_APP_SECRET if you add token debug)
